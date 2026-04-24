@@ -1,0 +1,74 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// 1. Tabel User - Inti dari segalanya
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  image         String?   // Foto profil dari Google/GitHub
+  
+  // Relasi Riwayat: Struk yang di-upload user ini
+  receipts      Receipt[]
+
+  // Relasi Hutang: Kamu jadi orang yang ngutang
+  debts         Debt[]    @relation("Debtor")
+  
+  // Relasi Piutang: Kamu yang bayarin duluan (orang lain ngutang ke kamu)
+  loans         Debt[]    @relation("Lender")
+
+  // Sistem Pertemanan (Self-relation)
+  friends       User[]    @relation("UserFriends")
+  symmetricFriends User[] @relation("UserFriends")
+}
+
+// 2. Tabel Receipt - Riwayat Struk (Hemat Memori)
+model Receipt {
+  id            String   @id @default(cuid())
+  createdAt     DateTime @default(now())
+  storeName     String?
+  
+  // Detail menu disimpan sebagai String JSON agar tidak makan banyak baris di DB
+  // Contoh isi: '[{"name":"Kopi","price":15000,"qty":1}]'
+  itemsRaw      String   @db.Text 
+  
+  subtotal      Int      @default(0)
+  tax           Int      @default(0)
+  serviceCharge Int      @default(0)
+  discount      Int      @default(0)
+  totalAmount   Int      @default(0)
+
+  // Siapa yang upload/bayar tagihan ini
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Menghubungkan struk ini ke catatan hutang yang dihasilkan
+  debts         Debt[]
+}
+
+// 3. Tabel Debt - Pencatatan Hutang & Piutang
+model Debt {
+  id          String   @id @default(cuid())
+  amount      Int      // Jumlah yang dihutangkan
+  isPaid      Boolean  @default(false)
+  note        String?  // Misal: "Nasi Goreng + Es Teh"
+  createdAt   DateTime @default(now())
+
+  // Siapa yang nagih (Lender)
+  lenderId    String
+  lender      User     @relation("Lender", fields: [lenderId], references: [id])
+
+  // Siapa yang ngutang (Debtor)
+  debtorId    String
+  debtor      User     @relation("Debtor", fields: [debtorId], references: [id])
+
+  // Opsional: Hutang ini berasal dari struk mana
+  receiptId   String?
+  receipt     Receipt? @relation(fields: [receiptId], references: [id])
+}
